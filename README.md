@@ -24,13 +24,11 @@ libraries, leading to reduced engagement.
 
 ### Dataset Description
 
-  Dataset       Description               Purpose
-  ------------- ------------------------- -------------------------
-  ratings.csv   User ratings for movies   Collaborative filtering
-  movies.csv    Movie titles and genres   Translate movie IDs to titles and genres 
-  tags.csv      User-generated keywords   Content-based filtering
-
------------------------------------------------------------------------
+ | Dataset    | Description               | Purpose                              |
+|------------|---------------------------|--------------------------------------|
+| ratings.csv| User ratings for movies   | Collaborative filtering              |
+| movies.csv | Movie titles and genres   | Translate movie IDs to titles and genres |
+| tags.csv   | User-generated keywords   | Content-based filtering              |
 ## Modeling
 
 Four collaborative filtering algorithms were trained and compared using 5-fold cross-validation on the full ratings dataset. The rating scale was set to 0.5 – 5.0 using the Surprise library, with an 80/20 train-test split.
@@ -56,13 +54,12 @@ A **cold-start fallback** was also built for brand-new users. It matches the use
 
 ### Model Performance
 
-  Model            RMSE         MAE
-  ---------------- ------------ ------------
-  KNN Basic        \~0.97       \~0.75
-  KNN With Means   \~0.90       \~0.69
-  NMF              \~0.92       \~0.71
-  SVD (Tuned)      **\~0.87**   **\~0.67**
-  
+ | Model         | RMSE  | MAE   |
+|---------------|-------|-------|
+| KNN Basic     | ~0.97 | ~0.75 |
+| KNN With Means| ~0.90 | ~0.69 |
+| NMF           | ~0.92 | ~0.71 |
+| **SVD (Tuned)**| **~0.87** | **~0.67** |
 
 ## Conclusion
 

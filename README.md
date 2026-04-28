@@ -1,4 +1,8 @@
 # Hybrid Movie Recommendation System
+
+![Thumbnail](image/thumnail.png)
+
+
 ## Project overview
 
 This project builds a personalized hybrid movie recommendation system that combines collaborative filtering and content-based filtering on the MovieLens dataset. The system learns from individual users' explicit ratings to predict which unwatched movies they are most likely to enjoy, returning the top 5 personalized recommendations per user. It also addresses the cold-start problem for new users who have no rating history.

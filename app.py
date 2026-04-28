@@ -1,7 +1,8 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-from surprise import Dataset, Reader, SVD
+import requests
+from sklearn.metrics.pairwise import cosine_similarity
 
 # -------------------------
 # Load data
@@ -9,7 +10,7 @@ from surprise import Dataset, Reader, SVD
 ratings = pd.read_csv("Data/ml-latest-small/ratings.csv")
 movies = pd.read_csv("Data/ml-latest-small/movies.csv")
 
-# Create avg_rating for fallback
+# Movie stats (for fallback)
 movie_stats = ratings.groupby('movieId').agg(
     avg_rating=('rating', 'mean'),
     num_ratings=('rating', 'count')
@@ -18,15 +19,22 @@ movie_stats = ratings.groupby('movieId').agg(
 movies = movies.merge(movie_stats, on='movieId', how='left')
 
 # -------------------------
-# Train model (SVD)
+# Build user-item matrix
 # -------------------------
-reader = Reader(rating_scale=(0.5, 5))
-data = Dataset.load_from_df(ratings[['userId', 'movieId', 'rating']], reader)
+user_item_matrix = ratings.pivot_table(
+    index='userId',
+    columns='movieId',
+    values='rating'
+).fillna(0)
 
-trainset = data.build_full_trainset()
+# Compute similarity
+user_similarity = cosine_similarity(user_item_matrix)
 
-model = SVD()
-model.fit(trainset)
+user_similarity_df = pd.DataFrame(
+    user_similarity,
+    index=user_item_matrix.index,
+    columns=user_item_matrix.index
+)
 
 # -------------------------
 # Helper functions
@@ -34,29 +42,38 @@ model.fit(trainset)
 def get_movie_id(title):
     return movies[movies['title'] == title]['movieId'].values[0]
 
-def create_user_profile(user_ratings):
-    user_data = []
+def recommend_for_new_user(user_ratings, n=5):
+    # Create user vector
+    user_vector = pd.Series(0, index=user_item_matrix.columns)
+
     for title, rating in user_ratings.items():
         movie_id = get_movie_id(title)
-        user_data.append((999999, movie_id, rating))
-    return user_data
+        if movie_id in user_vector.index:
+            user_vector[movie_id] = rating
 
-def recommend_for_new_user(user_ratings, n=5):
-    user_data = create_user_profile(user_ratings)
-    rated_movie_ids = [m for (_, m, _) in user_data]
+    # Compute similarity
+    similarities = cosine_similarity(
+        [user_vector],
+        user_item_matrix
+    )[0]
 
-    all_movies = movies['movieId'].unique()
-    unseen_movies = [m for m in all_movies if m not in rated_movie_ids]
+    similar_users = pd.Series(
+        similarities,
+        index=user_item_matrix.index
+    ).sort_values(ascending=False)
 
-    predictions = []
+    top_users = similar_users.iloc[1:11]
 
-    for movie_id in unseen_movies:
-        pred = model.predict(999999, movie_id)
-        predictions.append((movie_id, pred.est))
+    # Weighted ratings
+    weighted_ratings = user_item_matrix.loc[top_users.index].T.dot(top_users)
 
-    predictions.sort(key=lambda x: x[1], reverse=True)
+    # Remove already rated movies
+    for title in user_ratings:
+        movie_id = get_movie_id(title)
+        if movie_id in weighted_ratings.index:
+            weighted_ratings.drop(movie_id, inplace=True)
 
-    top_movies = [m[0] for m in predictions[:n]]
+    top_movies = weighted_ratings.sort_values(ascending=False).head(n).index
 
     return movies[movies['movieId'].isin(top_movies)][['title', 'avg_rating']]
 
@@ -64,23 +81,26 @@ def hybrid_recommend(user_ratings, n=5):
     if len(user_ratings) >= 5:
         return recommend_for_new_user(user_ratings, n)
     else:
-        return movies.sort_values(['avg_rating', 'num_ratings'], ascending=False).head(n)[['title', 'avg_rating']]
+        return movies.sort_values(
+            ['avg_rating', 'num_ratings'],
+            ascending=False
+        ).head(n)[['title', 'avg_rating']]
 
-
-import requests
-
+# -------------------------
+# Poster function
+# -------------------------
 API_KEY = st.secrets["TMDB_API_KEY"]
 
 @st.cache_data
 def fetch_poster(title):
     clean_title = title.split('(')[0].strip()
-    
+
     url = f"https://api.themoviedb.org/3/search/movie?api_key={API_KEY}&query={clean_title}"
-    
+
     try:
         response = requests.get(url)
         data = response.json()
-        
+
         if data.get('results'):
             poster_path = data['results'][0].get('poster_path')
             if poster_path:
@@ -89,6 +109,7 @@ def fetch_poster(title):
         pass
 
     return None
+
 # -------------------------
 # Streamlit UI
 # -------------------------
@@ -96,14 +117,12 @@ def fetch_poster(title):
 st.title("🎬 Ziki Movie Recommender")
 st.write("Search and add movies, then rate at least 5 to get recommendations")
 
-# -------------------------
-# SESSION STATE (store selections)
-# -------------------------
+# Session state
 if "selected_movies" not in st.session_state:
     st.session_state.selected_movies = []
 
 # -------------------------
-# SEARCH BAR
+# Search
 # -------------------------
 search_query = st.text_input("🔍 Search for a movie")
 
@@ -130,33 +149,52 @@ if search_query:
             st.write(movie)
 
         with col3:
-            if st.button("Add", key=movie):
+            if st.button("Add", key=f"add_{movie}"):
                 if movie not in st.session_state.selected_movies:
                     st.session_state.selected_movies.append(movie)
 
 # -------------------------
-# SHOW SELECTED MOVIES
+# Selected movies
 # -------------------------
 st.write("### ✅ Selected Movies")
 
 if st.session_state.selected_movies:
-    st.write(st.session_state.selected_movies)
+    for movie in st.session_state.selected_movies:
+        col1, col2, col3 = st.columns([1, 4, 1])
+
+        poster_url = fetch_poster(movie)
+
+        with col1:
+            if poster_url:
+                st.image(poster_url, width=60)
+
+        with col2:
+            st.write(movie)
+
+        with col3:
+            if st.button("❌", key=f"remove_{movie}"):
+                st.session_state.selected_movies.remove(movie)
+                st.rerun()
 else:
     st.info("No movies selected yet")
 
 # -------------------------
-# RATINGS SECTION
+# Ratings
 # -------------------------
 st.write("### ⭐ Rate Selected Movies")
 
 user_ratings = {}
 
 for movie in st.session_state.selected_movies:
-    rating = st.slider(f"Rate {movie}", 0.5, 5.0, 3.0, key=f"rate_{movie}")
+    rating = st.slider(
+        f"Rate {movie}",
+        0.5, 5.0, 3.0,
+        key=f"rate_{movie}"
+    )
     user_ratings[movie] = rating
 
 # -------------------------
-# RECOMMEND BUTTON
+# Recommendations
 # -------------------------
 if st.button("Get Recommendations"):
 

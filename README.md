@@ -1,6 +1,6 @@
 # Hybrid Movie Recommendation System
 
-![Thumbnail](image/thumnail.jpg)
+![Project Thumbnail](image/thumbnail.jpg)
 
 
 ## Project overview

@@ -2,7 +2,11 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import requests
-from sklearn.metrics.pairwise import cosine_similarity
+def cosine_similarity_manual(a, b):
+    dot = np.dot(a, b.T)
+    norm_a = np.linalg.norm(a, axis=1).reshape(-1, 1)
+    norm_b = np.linalg.norm(b, axis=1)
+    return dot / (norm_a * norm_b)
 
 # -------------------------
 # Load data
@@ -28,7 +32,7 @@ user_item_matrix = ratings.pivot_table(
 ).fillna(0)
 
 # Compute similarity
-user_similarity = cosine_similarity(user_item_matrix)
+user_similarity = cosine_similarity_manual(user_item_matrix, user_item_matrix)
 
 user_similarity_df = pd.DataFrame(
     user_similarity,
@@ -52,7 +56,7 @@ def recommend_for_new_user(user_ratings, n=5):
             user_vector[movie_id] = rating
 
     # Compute similarity
-    similarities = cosine_similarity(
+    similarities = cosine_similarity_manual(
         [user_vector],
         user_item_matrix
     )[0]

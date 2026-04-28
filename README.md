@@ -1,5 +1,6 @@
 # Hybrid Movie Recommendation System
 
+<img width="1274" height="735" alt="image" src="https://github.com/user-attachments/assets/316f137b-b852-415b-b71a-58c9c8009fae" />
 
 
 ## Project overview
